@@ -20,7 +20,8 @@
       "Bash(vercel --prod --yes)",
       "Bash(curl -s \"https://catch-up-news.vercel.app/api/guardian?topicId=ai\")",
       "Bash(vercel logs:*)",
-      "Bash(vercel inspect:*)"
+      "Bash(vercel inspect:*)",
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" \"https://catch-up-news.vercel.app/api/guardian?topicId=ai\")"
     ]
   }
 }
