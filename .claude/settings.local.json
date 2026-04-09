@@ -11,7 +11,15 @@
       "Bash(vercel whoami:*)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh repo:*)",
+      "Bash(vercel --yes)",
+      "Bash(vercel --yes --name catch-up-news)",
+      "Bash(vercel env:*)",
+      "Bash(git push:*)",
+      "Bash(vercel --prod --yes)",
+      "Bash(curl -s \"https://catch-up-news.vercel.app/api/guardian?topicId=ai\")",
+      "Bash(vercel logs:*)"
     ]
   }
 }
