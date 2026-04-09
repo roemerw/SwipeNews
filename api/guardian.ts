@@ -48,7 +48,7 @@ function buildGuardianUrl(apiKey: string, params: Record<string, string>): strin
   }
   const merged = { ...defaults, ...params }
   const qs = Object.entries(merged)
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .map(([k, v]) => `${k}=${v}`)
     .join('&')
   return `https://content.guardianapis.com/search?${qs}`
 }

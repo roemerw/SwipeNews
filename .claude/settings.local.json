@@ -22,7 +22,9 @@
       "Bash(vercel logs:*)",
       "Bash(vercel inspect:*)",
       "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" \"https://catch-up-news.vercel.app/api/guardian?topicId=ai\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Got {len\\(d\\)} articles'\\); [print\\(f'  - {a[\\\\\"headline\\\\\"][:70]}'\\) for a in d[:3]]\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Got {len\\(d\\)} articles'\\); [print\\(f'  - {a[\\\\\"headline\\\\\"][:70]}'\\) for a in d[:3]]\")",
+      "Bash(python3 -c ':*)",
+      "Bash(node -e \"console.log\\(encodeURIComponent\\('technology/artificialintelligenceai'\\)\\)\")"
     ]
   }
 }
