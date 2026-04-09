@@ -19,7 +19,8 @@
       "Bash(git push:*)",
       "Bash(vercel --prod --yes)",
       "Bash(curl -s \"https://catch-up-news.vercel.app/api/guardian?topicId=ai\")",
-      "Bash(vercel logs:*)"
+      "Bash(vercel logs:*)",
+      "Bash(vercel inspect:*)"
     ]
   }
 }

@@ -36,9 +36,9 @@ function stripHtml(html: string): string {
 
 function httpsGet(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    https.get(url, (resp) => {
+    https.get(url, (resp: { statusCode?: number; on: (event: string, cb: (chunk?: string) => void) => void }) => {
       let data = ''
-      resp.on('data', (chunk: string) => { data += chunk })
+      resp.on('data', (chunk?: string) => { data += chunk })
       resp.on('end', () => {
         if (resp.statusCode && resp.statusCode >= 400) {
           reject(new Error(`HTTP ${resp.statusCode}`))
@@ -46,32 +46,32 @@ function httpsGet(url: string): Promise<string> {
           resolve(data)
         }
       })
-    }).on('error', reject)
+    }).on('error', (e: Error) => reject(e))
   })
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const topicId = req.query.topicId as string | undefined
-
-  if (!topicId || !TOPIC_QUERIES[topicId]) {
-    return res.status(400).json({ error: 'Invalid topicId' })
-  }
-
-  const apiKey = process.env.GUARDIAN_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured' })
-  }
-
-  const query = TOPIC_QUERIES[topicId]
-  const params = new URLSearchParams({
-    q: query,
-    'page-size': '10',
-    'order-by': 'newest',
-    'show-fields': 'headline,trailText,bodyText,thumbnail',
-    'api-key': apiKey,
-  })
-
   try {
+    const topicId = req.query.topicId as string | undefined
+
+    if (!topicId || !TOPIC_QUERIES[topicId]) {
+      return res.status(400).json({ error: 'Invalid topicId' })
+    }
+
+    const apiKey = process.env.GUARDIAN_API_KEY
+    if (!apiKey) {
+      return res.status(500).json({ error: 'API key not configured' })
+    }
+
+    const query = TOPIC_QUERIES[topicId]
+    const params = new URLSearchParams({
+      q: query,
+      'page-size': '10',
+      'order-by': 'newest',
+      'show-fields': 'headline,trailText,bodyText,thumbnail',
+      'api-key': apiKey,
+    })
+
     const raw = await httpsGet(
       `https://content.guardianapis.com/search?${params.toString()}`,
     )
@@ -91,6 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60')
     return res.status(200).json(articles)
   } catch (err) {
+    console.error('Guardian API error:', err)
     const message = err instanceof Error ? err.message : 'Unknown error'
     return res.status(502).json({ error: `Failed to fetch from Guardian API: ${message}` })
   }
