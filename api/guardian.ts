@@ -1,13 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const TOPIC_QUERIES: Record<string, string> = {
-  iran: 'Iran',
-  gaza: 'Gaza',
-  trump: 'Trump',
-  nato: 'NATO',
-  oekraine: 'Ukraine',
-  ai: 'artificial intelligence',
-  europa: 'European Union',
+interface TopicConfig {
+  tag: string
+  query: string
+}
+
+const TOPIC_CONFIG: Record<string, TopicConfig> = {
+  ai:       { tag: 'technology/artificialintelligenceai', query: 'artificial intelligence' },
+  iran:     { tag: 'world/iran',                         query: 'Iran' },
+  gaza:     { tag: 'world/gaza',                         query: 'Gaza' },
+  trump:    { tag: 'us-news/donaldtrump',                query: 'Trump' },
+  nato:     { tag: 'world/nato',                         query: 'NATO' },
+  oekraine: { tag: 'world/ukraine',                      query: 'Ukraine' },
+  europa:   { tag: 'world/eu',                           query: 'European Union' },
 }
 
 interface GuardianResult {
@@ -33,11 +38,26 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim()
 }
 
+function buildGuardianUrl(apiKey: string, params: Record<string, string>): string {
+  const defaults: Record<string, string> = {
+    'page-size': '15',
+    'order-by': 'newest',
+    'type': 'article',
+    'show-fields': 'headline,trailText,bodyText,thumbnail',
+    'api-key': apiKey,
+  }
+  const merged = { ...defaults, ...params }
+  const qs = Object.entries(merged)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&')
+  return `https://content.guardianapis.com/search?${qs}`
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const topicId = req.query.topicId as string | undefined
 
-    if (!topicId || !TOPIC_QUERIES[topicId]) {
+    if (!topicId || !TOPIC_CONFIG[topicId]) {
       return res.status(400).json({ error: 'Invalid topicId' })
     }
 
@@ -46,16 +66,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'API key not configured' })
     }
 
-    const query = TOPIC_QUERIES[topicId]
-    const url = `https://content.guardianapis.com/search?q=${encodeURIComponent(query)}&page-size=10&order-by=newest&show-fields=headline,trailText,bodyText,thumbnail&api-key=${apiKey}`
+    const config = TOPIC_CONFIG[topicId]
 
-    const response = await globalThis.fetch(url)
+    // Primary: tag-based filtering (editorial precision)
+    const primaryUrl = buildGuardianUrl(apiKey, { tag: config.tag })
+    const primaryResponse = await globalThis.fetch(primaryUrl)
 
-    if (!response.ok) {
-      return res.status(502).json({ error: `Guardian API returned ${response.status}` })
+    if (!primaryResponse.ok) {
+      return res.status(502).json({ error: `Guardian API returned ${primaryResponse.status}` })
     }
 
-    const data: GuardianResponse = await response.json()
+    let data: GuardianResponse = await primaryResponse.json()
+
+    // Fallback: keyword search if tags return too few results
+    if (data.response.results.length < 3) {
+      const fallbackUrl = buildGuardianUrl(apiKey, { q: config.query })
+      const fallbackResponse = await globalThis.fetch(fallbackUrl)
+      if (fallbackResponse.ok) {
+        data = await fallbackResponse.json()
+      }
+    }
+
     const articles = data.response.results.map((result) => ({
       id: result.id,
       topicId,
