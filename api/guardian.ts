@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import https from 'https'
 
 const TOPIC_QUERIES: Record<string, string> = {
   iran: 'Iran',
@@ -33,6 +34,22 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim()
 }
 
+function httpsGet(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    https.get(url, (resp) => {
+      let data = ''
+      resp.on('data', (chunk: string) => { data += chunk })
+      resp.on('end', () => {
+        if (resp.statusCode && resp.statusCode >= 400) {
+          reject(new Error(`HTTP ${resp.statusCode}`))
+        } else {
+          resolve(data)
+        }
+      })
+    }).on('error', reject)
+  })
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const topicId = req.query.topicId as string | undefined
 
@@ -55,15 +72,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   })
 
   try {
-    const response = await fetch(
+    const raw = await httpsGet(
       `https://content.guardianapis.com/search?${params.toString()}`,
     )
-
-    if (!response.ok) {
-      return res.status(502).json({ error: `Guardian API returned ${response.status}` })
-    }
-
-    const data: GuardianResponse = await response.json()
+    const data: GuardianResponse = JSON.parse(raw)
     const articles = data.response.results.map((result) => ({
       id: result.id,
       topicId,
@@ -78,7 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60')
     return res.status(200).json(articles)
-  } catch {
-    return res.status(502).json({ error: 'Failed to fetch from Guardian API' })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return res.status(502).json({ error: `Failed to fetch from Guardian API: ${message}` })
   }
 }
