@@ -18,7 +18,7 @@ export function TopicOverview({
   onBack,
 }: TopicOverviewProps) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex items-center gap-3 px-4 pb-2 pt-4">
         <button
           type="button"
@@ -31,7 +31,7 @@ export function TopicOverview({
         <h1 className="text-lg font-semibold tracking-tight text-ink">{topicLabel}</h1>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
           What&apos;s happening
         </p>
@@ -46,7 +46,7 @@ export function TopicOverview({
             ))}
           </div>
         ) : (
-          <ol className="mt-4 space-y-3">
+          <ol className="mt-4 space-y-2.5">
             {articles.map((article, i) => (
               <motion.li
                 key={article.id}
@@ -58,24 +58,24 @@ export function TopicOverview({
                 <span className="mt-0.5 text-xs font-semibold text-muted/60 tabular-nums">
                   {i + 1}.
                 </span>
-                <span className="text-sm leading-snug text-ink">
+                <span className="text-[13px] leading-snug text-ink">
                   {article.headline}
                 </span>
               </motion.li>
             ))}
           </ol>
         )}
-      </div>
 
-      <div className="px-5 pb-5 pt-2">
-        <button
-          type="button"
-          onClick={onBegin}
-          disabled={isLoading || articles.length === 0}
-          className="w-full rounded-lg bg-ink px-5 py-4 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-500/60"
-        >
-          Start swiping
-        </button>
+        <div className="sticky bottom-0 bg-gradient-to-t from-frame from-70% pb-5 pt-4 mt-2">
+          <button
+            type="button"
+            onClick={onBegin}
+            disabled={isLoading || articles.length === 0}
+            className="w-full rounded-lg bg-ink px-5 py-4 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-500/60"
+          >
+            Start swiping
+          </button>
+        </div>
       </div>
     </section>
   )
