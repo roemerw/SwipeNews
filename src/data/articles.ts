@@ -21,10 +21,8 @@ interface ArticleSeed {
   originalUrl: string
 }
 
-const BASE_TIME = Date.parse('2026-04-08T12:30:00.000Z')
-
 function toIso(minutesAgo: number) {
-  return new Date(BASE_TIME - minutesAgo * 60_000).toISOString()
+  return new Date(Date.now() - minutesAgo * 60_000).toISOString()
 }
 
 function buildArticle(topicId: string, seed: ArticleSeed): Article {
