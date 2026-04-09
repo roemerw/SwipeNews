@@ -139,7 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Dedup near-identical headlines, then cap at 10 diverse stories
     const articles = dedup(allArticles).slice(0, 10)
 
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60')
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=30')
     return res.status(200).json(articles)
   } catch (err) {
     console.error('Guardian API error:', err)
