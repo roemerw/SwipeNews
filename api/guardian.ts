@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import https from 'https'
 
 const TOPIC_QUERIES: Record<string, string> = {
   iran: 'Iran',
@@ -34,22 +33,6 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim()
 }
 
-function httpsGet(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    https.get(url, (resp: { statusCode?: number; on: (event: string, cb: (chunk?: string) => void) => void }) => {
-      let data = ''
-      resp.on('data', (chunk?: string) => { data += chunk })
-      resp.on('end', () => {
-        if (resp.statusCode && resp.statusCode >= 400) {
-          reject(new Error(`HTTP ${resp.statusCode}`))
-        } else {
-          resolve(data)
-        }
-      })
-    }).on('error', (e: Error) => reject(e))
-  })
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const topicId = req.query.topicId as string | undefined
@@ -64,18 +47,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const query = TOPIC_QUERIES[topicId]
-    const params = new URLSearchParams({
-      q: query,
-      'page-size': '10',
-      'order-by': 'newest',
-      'show-fields': 'headline,trailText,bodyText,thumbnail',
-      'api-key': apiKey,
-    })
+    const url = `https://content.guardianapis.com/search?q=${encodeURIComponent(query)}&page-size=10&order-by=newest&show-fields=headline,trailText,bodyText,thumbnail&api-key=${apiKey}`
 
-    const raw = await httpsGet(
-      `https://content.guardianapis.com/search?${params.toString()}`,
-    )
-    const data: GuardianResponse = JSON.parse(raw)
+    const response = await globalThis.fetch(url)
+
+    if (!response.ok) {
+      return res.status(502).json({ error: `Guardian API returned ${response.status}` })
+    }
+
+    const data: GuardianResponse = await response.json()
     const articles = data.response.results.map((result) => ({
       id: result.id,
       topicId,
@@ -93,6 +73,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     console.error('Guardian API error:', err)
     const message = err instanceof Error ? err.message : 'Unknown error'
-    return res.status(502).json({ error: `Failed to fetch from Guardian API: ${message}` })
+    return res.status(502).json({ error: `Failed to fetch: ${message}` })
   }
 }
