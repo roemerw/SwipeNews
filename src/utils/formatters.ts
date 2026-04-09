@@ -5,14 +5,22 @@ function pad(value: number) {
 export function formatArticleTimestamp(isoTimestamp: string) {
   const now = Date.now()
   const articleTime = new Date(isoTimestamp).getTime()
-  const elapsedMinutes = Math.max(Math.round((now - articleTime) / 60_000), 0)
+  const elapsedMs = Math.max(now - articleTime, 0)
+  const elapsedSecs = Math.round(elapsedMs / 1000)
+  const elapsedMins = Math.round(elapsedMs / 60_000)
 
-  if (elapsedMinutes < 60) {
-    return `${Math.max(elapsedMinutes, 1)}m ago`
+  if (elapsedSecs < 60) {
+    return `${Math.max(elapsedSecs, 1)}s ago`
   }
 
-  if (elapsedMinutes < 24 * 60) {
-    return `${Math.round(elapsedMinutes / 60)}h ago`
+  if (elapsedMins < 60) {
+    return `${elapsedMins}min ago`
+  }
+
+  if (elapsedMins < 24 * 60) {
+    const hrs = Math.floor(elapsedMins / 60)
+    const mins = elapsedMins % 60
+    return mins > 0 ? `${hrs}h ${mins}min ago` : `${hrs}h ago`
   }
 
   const articleDate = new Date(isoTimestamp)

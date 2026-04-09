@@ -19,17 +19,22 @@ function formatTimeRange(articles: Article[]): string {
   const now = Date.now()
 
   const formatAge = (ms: number) => {
+    const secs = Math.round(ms / 1000)
+    if (secs < 60) return `${Math.max(secs, 1)}s`
     const mins = Math.round(ms / 60_000)
-    if (mins < 60) return `${Math.max(mins, 1)}m`
-    const hrs = Math.round(mins / 60)
-    if (hrs < 24) return `${hrs}h`
-    return `${Math.round(hrs / 24)}d`
+    if (mins < 60) return `${mins}min`
+    const hrs = Math.floor(mins / 60)
+    const remainMins = mins % 60
+    if (hrs < 24) return remainMins > 0 ? `${hrs}h ${remainMins}min` : `${hrs}h`
+    const days = Math.floor(hrs / 24)
+    const remainHrs = hrs % 24
+    return remainHrs > 0 ? `${days}d ${remainHrs}h` : `${days}d`
   }
 
   const newestAge = formatAge(now - newest)
   const oldestAge = formatAge(now - oldest)
 
-  if (newestAge === oldestAge) return `from ${newestAge} ago`
+  if (newestAge === oldestAge) return `${newestAge} ago`
   return `${newestAge} – ${oldestAge} ago`
 }
 
