@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CatchUpActions } from './components/CatchUpActions'
 import { CatchUpCard } from './components/CatchUpCard'
 import { CatchUpHeader } from './components/CatchUpHeader'
 import { CardSkeleton } from './components/CardSkeleton'
 import { EmptyState } from './components/EmptyState'
+import { PullToRefresh } from './components/PullToRefresh'
 import { ReaderSheet } from './components/ReaderSheet'
 import { TopicOverview } from './components/TopicOverview'
 import { TopicSelector } from './components/TopicSelector'
 import { topics } from './data/topics'
 import { useCatchUpSession } from './hooks/useCatchUpSession'
-import { formatFreshnessLabel } from './utils/formatters'
 
 function App() {
   const session = useCatchUpSession()
@@ -25,7 +25,6 @@ function App() {
     history,
     isLoading,
     keepUnread,
-    lastRefreshedAt,
     markRead,
     nextArticle,
     openReader,
@@ -41,11 +40,6 @@ function App() {
     summary,
     undo,
   } = session
-
-  const freshnessLabel = useMemo(
-    () => formatFreshnessLabel(lastRefreshedAt),
-    [lastRefreshedAt],
-  )
 
   const handleStart = useCallback(async () => {
     if (!selectedTopicId) {
@@ -134,9 +128,7 @@ function App() {
             <TopicSelector
               topics={topics}
               selectedTopicId={selectedTopicId}
-              freshnessLabel={freshnessLabel}
               onSelectTopic={selectTopic}
-              onRefresh={refresh}
               onStart={handleStart}
             />
             {error ? (
@@ -160,71 +152,72 @@ function App() {
         ) : null}
 
         {screen === 'queue' ? (
-          <section className="relative flex min-h-0 flex-1 flex-col">
-            <CatchUpHeader
-              remainingCount={remainingCount}
-              canUndo={history.length > 0}
-              onBack={goBack}
-              onRefresh={refresh}
-              onUndo={undo}
-            />
+          <PullToRefresh onRefresh={refresh}>
+            <section className="relative flex min-h-0 flex-1 flex-col">
+              <CatchUpHeader
+                remainingCount={remainingCount}
+                canUndo={history.length > 0}
+                onBack={goBack}
+                onUndo={undo}
+              />
 
-            <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4 pt-1 md:px-5">
-              <div className="relative h-full min-h-[430px] w-full max-w-[360px]">
-                {isLoading ? (
-                  <CardSkeleton />
-                ) : (
-                  <>
-                    {nextArticle ? (
-                      <motion.div
-                        aria-hidden="true"
-                        initial={false}
-                        animate={{ scale: 0.97, y: 14, opacity: 0.76 }}
-                        className="absolute inset-x-0 bottom-0 top-4"
-                      >
-                        <CatchUpCard article={nextArticle} variant="preview" />
-                      </motion.div>
-                    ) : null}
-
-                    <AnimatePresence initial={false} custom={swipeDirection} mode="wait">
-                      {activeArticle ? (
-                        <CatchUpCard
-                          key={activeArticle.id}
-                          article={activeArticle}
-                          swipeDirection={swipeDirection}
-                          onOpenReader={openReader}
-                          onCommitAction={handleCardCommit}
-                        />
+              <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4 pt-1 md:px-5">
+                <div className="relative h-full min-h-[430px] w-full max-w-[360px]">
+                  {isLoading ? (
+                    <CardSkeleton />
+                  ) : (
+                    <>
+                      {nextArticle ? (
+                        <motion.div
+                          aria-hidden="true"
+                          initial={false}
+                          animate={{ scale: 0.97, y: 14, opacity: 0.76 }}
+                          className="absolute inset-x-0 bottom-0 top-4"
+                        >
+                          <CatchUpCard article={nextArticle} variant="preview" />
+                        </motion.div>
                       ) : null}
-                    </AnimatePresence>
 
-                    {error ? (
-                      <div className="flex h-full items-center justify-center">
-                        <div className="rounded-lg border border-white bg-white p-6 text-center shadow-card">
-                          <p className="text-sm text-muted">{error}</p>
-                          <button
-                            type="button"
-                            onClick={refresh}
-                            className="mt-4 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-900"
-                          >
-                            Try again
-                          </button>
+                      <AnimatePresence initial={false} custom={swipeDirection} mode="popLayout">
+                        {activeArticle ? (
+                          <CatchUpCard
+                            key={activeArticle.id}
+                            article={activeArticle}
+                            swipeDirection={swipeDirection}
+                            onOpenReader={openReader}
+                            onCommitAction={handleCardCommit}
+                          />
+                        ) : null}
+                      </AnimatePresence>
+
+                      {error ? (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="rounded-lg border border-white bg-white p-6 text-center shadow-card">
+                            <p className="text-sm text-muted">{error}</p>
+                            <button
+                              type="button"
+                              onClick={refresh}
+                              className="mt-4 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-900"
+                            >
+                              Try again
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ) : null}
-                  </>
-                )}
+                      ) : null}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <CatchUpActions
-              disabled={!activeArticle || Boolean(readerArticle) || isLoading}
-              onKeepUnread={handleKeepUnread}
-              onMarkRead={handleMarkRead}
-            />
+              <CatchUpActions
+                disabled={!activeArticle || Boolean(readerArticle) || isLoading}
+                onKeepUnread={handleKeepUnread}
+                onMarkRead={handleMarkRead}
+              />
 
-            <ReaderSheet article={readerArticle} onClose={closeReader} />
-          </section>
+              <ReaderSheet article={readerArticle} onClose={closeReader} />
+            </section>
+          </PullToRefresh>
         ) : null}
 
         {screen === 'done' && selectedTopic ? (

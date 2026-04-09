@@ -119,38 +119,17 @@ describe('Catch up prototype', () => {
     expect(screen.getByText('10 marked read, 0 kept unread.')).toBeInTheDocument()
   })
 
-  test('refresh reshuffles the topic start point and restarts from done', async () => {
+  test('can go back to topics and restart a new session', async () => {
     render(<App />)
 
-    const user = userEvent.setup()
-
-    await user.click(screen.getByRole('button', { name: 'Iran' }))
-    await user.click(screen.getByRole('button', { name: /start catch-up/i }))
-    await screen.findByRole('button', { name: /start swiping/i })
-    await user.click(screen.getByRole('button', { name: /start swiping/i }))
-    await screen.findByText(
-      /Iran signals it will keep indirect talks open as pressure rises over regional strikes/i,
-    )
+    const user = await startIranSession()
 
     await user.click(screen.getByRole('button', { name: /back to topics/i }))
     expect(screen.getByRole('button', { name: 'Iran' })).toHaveAttribute('aria-pressed', 'true')
 
-    await user.click(screen.getByRole('button', { name: /refresh topics/i }))
     await user.click(screen.getByRole('button', { name: /start catch-up/i }))
     await screen.findByRole('button', { name: /start swiping/i })
     await user.click(screen.getByRole('button', { name: /start swiping/i }))
-    await screen.findByText(
-      /Shipping insurers reassess Gulf exposure as traders watch Iranian warnings/i,
-    )
-
-    for (let index = 0; index < 10; index += 1) {
-      await user.click(screen.getByRole('button', { name: /mark as read/i }))
-    }
-
-    await user.click(screen.getByRole('button', { name: /refresh/i }))
-    await screen.findByRole('button', { name: /start swiping/i })
-    await user.click(screen.getByRole('button', { name: /start swiping/i }))
     await screen.findByText('10 Left')
-    expect(screen.queryByText('All caught up.')).not.toBeInTheDocument()
   })
 })

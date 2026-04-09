@@ -14,30 +14,31 @@ interface CatchUpCardProps {
 
 const springTransition = {
   type: 'spring' as const,
-  stiffness: 280,
-  damping: 28,
+  stiffness: 400,
+  damping: 35,
 }
 
 const activeCardVariants = {
   initial: {
     opacity: 0,
-    y: 18,
-    scale: 0.98,
+    scale: 0.95,
+    y: 10,
   },
   animate: {
     opacity: 1,
-    y: 0,
     scale: 1,
+    y: 0,
+    x: 0,
     transition: springTransition,
   },
   exit: (direction: 1 | -1) => ({
     opacity: 0,
-    x: direction > 0 ? 220 : -220,
-    rotate: direction > 0 ? 10 : -10,
+    x: direction > 0 ? 280 : -280,
+    rotate: direction > 0 ? 12 : -12,
     transition: {
-      type: 'tween' as const,
-      duration: 0.24,
-      ease: 'easeOut' as const,
+      type: 'spring' as const,
+      stiffness: 300,
+      damping: 30,
     },
   }),
 }
@@ -51,35 +52,27 @@ export function CatchUpCard({
 }: CatchUpCardProps) {
   const isPreview = variant === 'preview'
   const x = useMotionValue(0)
-  const rotate = useTransform(x, [-160, 0, 160], [-7, 0, 7])
-  const readOpacity = useTransform(x, [16, 96], [0, 1])
-  const unreadOpacity = useTransform(x, [-96, -16], [1, 0])
+  const rotate = useTransform(x, [-200, 0, 200], [-8, 0, 8])
+  const readOpacity = useTransform(x, [20, 80], [0, 1])
+  const unreadOpacity = useTransform(x, [-80, -20], [1, 0])
   const pointerStart = useRef<{ x: number; y: number } | null>(null)
   const travelRef = useRef(0)
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
-    if (isPreview) {
-      return
-    }
-
+    if (isPreview) return
     pointerStart.current = { x: event.clientX, y: event.clientY }
     travelRef.current = 0
   }
 
   const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
-    if (isPreview || !pointerStart.current) {
-      return
-    }
-
+    if (isPreview || !pointerStart.current) return
     const travelDistance = Math.hypot(
       event.clientX - pointerStart.current.x,
       event.clientY - pointerStart.current.y,
     )
-
     if (travelDistance < 6 && travelRef.current < 6) {
       onOpenReader?.()
     }
-
     pointerStart.current = null
   }
 
@@ -120,24 +113,28 @@ export function CatchUpCard({
 
   return (
     <motion.article
-      className="relative h-full rounded-lg border border-white bg-white p-5 shadow-card"
+      className="absolute inset-0 rounded-lg border border-white bg-white p-5 shadow-card"
       drag="x"
       dragElastic={0.18}
-      dragMomentum
+      dragMomentum={false}
+      dragSnapToOrigin
       style={{ x, rotate }}
       custom={swipeDirection}
       variants={activeCardVariants}
       initial="initial"
       animate="animate"
       exit="exit"
+      layout
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onDrag={(_, info) => {
         travelRef.current = Math.max(travelRef.current, Math.abs(info.offset.x))
       }}
       onDragEnd={(_, info) => {
+        const threshold = 90
+        const velocityThreshold = 600
         const shouldCommit =
-          Math.abs(info.offset.x) >= 96 || Math.abs(info.velocity.x) >= 700
+          Math.abs(info.offset.x) >= threshold || Math.abs(info.velocity.x) >= velocityThreshold
 
         if (!shouldCommit) {
           travelRef.current = 0
@@ -146,7 +143,6 @@ export function CatchUpCard({
 
         onCommitAction?.(info.offset.x > 0 ? 'read' : 'keptUnread')
       }}
-      whileTap={{ scale: 0.995 }}
     >
       <motion.div
         aria-hidden="true"

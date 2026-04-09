@@ -4,6 +4,26 @@ import { getTopicById } from '../data/topics'
 import { buildQueue } from '../utils/mockQueue'
 import { fetchArticlesForTopic } from '../services/fetchArticles'
 
+const READ_KEY = 'catchup_read_ids'
+
+function getReadIds(): Set<string> {
+  try {
+    const raw = globalThis.localStorage?.getItem(READ_KEY)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function persistReadIds(ids: Set<string>) {
+  try {
+    const arr = [...ids].slice(-200)
+    globalThis.localStorage?.setItem(READ_KEY, JSON.stringify(arr))
+  } catch {
+    // localStorage unavailable (SSR, test env)
+  }
+}
+
 export type Screen = 'topics' | 'overview' | 'queue' | 'done'
 export type HistoryAction = 'read' | 'keptUnread'
 
@@ -56,7 +76,9 @@ export function useCatchUpSession() {
     setScreen('overview')
     try {
       const articles = await fetchArticlesForTopic(topicId)
-      setQueue(buildQueue(articles, 0))
+      const readIds = getReadIds()
+      const fresh = articles.filter((a) => !readIds.has(a.id))
+      setQueue(buildQueue(fresh.length > 0 ? fresh : articles, 0))
       setCurrentIndex(0)
       setHistory([])
       setReaderArticleId(null)
@@ -89,6 +111,11 @@ export function useCatchUpSession() {
   }
 
   const markRead = () => {
+    if (activeArticle) {
+      const readIds = getReadIds()
+      readIds.add(activeArticle.id)
+      persistReadIds(readIds)
+    }
     processCurrentArticle('read')
   }
 
@@ -133,7 +160,9 @@ export function useCatchUpSession() {
       setScreen('overview')
       try {
         const articles = await fetchArticlesForTopic(selectedTopicId)
-        setQueue(buildQueue(articles, nextVersion))
+        const readIds = getReadIds()
+        const fresh = articles.filter((a) => !readIds.has(a.id))
+        setQueue(buildQueue(fresh.length > 0 ? fresh : articles, nextVersion))
         setCurrentIndex(0)
         setHistory([])
         setReaderArticleId(null)

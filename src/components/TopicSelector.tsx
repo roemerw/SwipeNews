@@ -1,38 +1,21 @@
-import { RefreshIcon } from './Icons'
 import type { Topic } from '../data/topics'
 import { TopicChip } from './TopicChip'
 
 interface TopicSelectorProps {
   topics: Topic[]
   selectedTopicId: string | null
-  freshnessLabel: string
   onSelectTopic: (topicId: string) => void
-  onRefresh: () => void
   onStart: () => void
 }
 
 export function TopicSelector({
   topics,
   selectedTopicId,
-  freshnessLabel,
   onSelectTopic,
-  onRefresh,
   onStart,
 }: TopicSelectorProps) {
   return (
     <section className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
-      <div className="flex items-center justify-between text-xs text-muted">
-        <span>{freshnessLabel}</span>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/50 bg-white/55 text-ink transition hover:bg-white"
-          aria-label="Refresh topics"
-        >
-          <RefreshIcon className="h-4 w-4" />
-        </button>
-      </div>
-
       <div className="mt-7">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
           Topic monitor
