@@ -17,12 +17,14 @@ Inspect the current implementation and tests before changing behavior. Preserve 
 1. User selects a topic on the topic screen
 2. `useCatchUpSession.start(topicId)` calls `fetchArticlesForTopic(topicId)` (in `src/services/fetchArticles.ts`)
 3. `fetchArticlesForTopic` hits `/api/guardian?topicId=xxx` — a Vercel serverless function that proxies The Guardian's Content API
-4. On API failure, falls back to local mock data in `src/data/articles.ts`
-5. Articles are passed to `buildQueue(articles, refreshVersion)` for rotation/freshness
-6. Queue is rendered as swipeable cards
+4. Server fetches 25 articles, deduplicates by headline similarity, returns top 10
+5. On API failure, falls back to local mock data in `src/data/articles.ts`
+6. Overview screen shows 10 headline bullets, then user taps "Start swiping"
+7. Articles are passed to `buildQueue(articles, refreshVersion)` for rotation/freshness
+8. Queue is rendered as swipeable cards
 
 ### Key files
-- `api/guardian.ts` — Vercel serverless function, maps topic IDs to Guardian search queries, transforms responses to `Article` interface
+- `api/guardian.ts` — Vercel serverless function, maps topic IDs to Guardian editorial tags, deduplicates near-identical headlines (Jaccard similarity >0.55), caps at 10 diverse stories
 - `src/services/fetchArticles.ts` — async fetch with mock fallback
 - `src/hooks/useCatchUpSession.ts` — session state machine (async `start`/`refresh`, `isLoading`/`error` states)
 - `src/utils/mockQueue.ts` — pure function `buildQueue(articles, refreshVersion)` for rotation + freshness offset
