@@ -1,0 +1,15 @@
+{
+  "name": "Catch up",
+  "short_name": "Catch up",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#c7dbed",
+  "theme_color": "#c7dbed",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
