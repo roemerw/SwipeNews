@@ -7,6 +7,8 @@ async function startIranSession() {
 
   await user.click(screen.getByRole('button', { name: 'Iran' }))
   await user.click(screen.getByRole('button', { name: /start catch-up/i }))
+  await screen.findByRole('button', { name: /start swiping/i })
+  await user.click(screen.getByRole('button', { name: /start swiping/i }))
   await screen.findByText('10 Left')
 
   return user
@@ -124,6 +126,8 @@ describe('Catch up prototype', () => {
 
     await user.click(screen.getByRole('button', { name: 'Iran' }))
     await user.click(screen.getByRole('button', { name: /start catch-up/i }))
+    await screen.findByRole('button', { name: /start swiping/i })
+    await user.click(screen.getByRole('button', { name: /start swiping/i }))
     await screen.findByText(
       /Iran signals it will keep indirect talks open as pressure rises over regional strikes/i,
     )
@@ -133,6 +137,8 @@ describe('Catch up prototype', () => {
 
     await user.click(screen.getByRole('button', { name: /refresh topics/i }))
     await user.click(screen.getByRole('button', { name: /start catch-up/i }))
+    await screen.findByRole('button', { name: /start swiping/i })
+    await user.click(screen.getByRole('button', { name: /start swiping/i }))
     await screen.findByText(
       /Shipping insurers reassess Gulf exposure as traders watch Iranian warnings/i,
     )
@@ -142,6 +148,8 @@ describe('Catch up prototype', () => {
     }
 
     await user.click(screen.getByRole('button', { name: /refresh/i }))
+    await screen.findByRole('button', { name: /start swiping/i })
+    await user.click(screen.getByRole('button', { name: /start swiping/i }))
     await screen.findByText('10 Left')
     expect(screen.queryByText('All caught up.')).not.toBeInTheDocument()
   })

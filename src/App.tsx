@@ -6,6 +6,7 @@ import { CatchUpHeader } from './components/CatchUpHeader'
 import { CardSkeleton } from './components/CardSkeleton'
 import { EmptyState } from './components/EmptyState'
 import { ReaderSheet } from './components/ReaderSheet'
+import { TopicOverview } from './components/TopicOverview'
 import { TopicSelector } from './components/TopicSelector'
 import { topics } from './data/topics'
 import { useCatchUpSession } from './hooks/useCatchUpSession'
@@ -17,6 +18,7 @@ function App() {
 
   const {
     activeArticle,
+    beginQueue,
     closeReader,
     error,
     goBack,
@@ -27,6 +29,7 @@ function App() {
     markRead,
     nextArticle,
     openReader,
+    queue,
     readerArticle,
     refresh,
     remainingCount,
@@ -144,6 +147,16 @@ function App() {
               </div>
             ) : null}
           </>
+        ) : null}
+
+        {screen === 'overview' && selectedTopic ? (
+          <TopicOverview
+            topicLabel={selectedTopic.label}
+            articles={queue}
+            isLoading={isLoading}
+            onBegin={beginQueue}
+            onBack={goBack}
+          />
         ) : null}
 
         {screen === 'queue' ? (

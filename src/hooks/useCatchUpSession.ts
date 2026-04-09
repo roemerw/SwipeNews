@@ -4,7 +4,7 @@ import { getTopicById } from '../data/topics'
 import { buildQueue } from '../utils/mockQueue'
 import { fetchArticlesForTopic } from '../services/fetchArticles'
 
-export type Screen = 'topics' | 'queue' | 'done'
+export type Screen = 'topics' | 'overview' | 'queue' | 'done'
 export type HistoryAction = 'read' | 'keptUnread'
 
 export interface HistoryEntry {
@@ -53,7 +53,7 @@ export function useCatchUpSession() {
     setSelectedTopicId(topicId)
     setIsLoading(true)
     setError(null)
-    setScreen('queue')
+    setScreen('overview')
     try {
       const articles = await fetchArticlesForTopic(topicId)
       setQueue(buildQueue(articles, 0))
@@ -67,6 +67,12 @@ export function useCatchUpSession() {
       setIsLoading(false)
     }
   }, [])
+
+  const beginQueue = () => {
+    if (queue.length > 0) {
+      setScreen('queue')
+    }
+  }
 
   const processCurrentArticle = (action: HistoryAction) => {
     if (screen !== 'queue' || !activeArticle || readerArticleId) {
@@ -121,10 +127,10 @@ export function useCatchUpSession() {
     setRefreshVersion(nextVersion)
     setLastRefreshedAt(new Date().toISOString())
 
-    if ((screen === 'queue' || screen === 'done') && selectedTopicId) {
+    if ((screen === 'overview' || screen === 'queue' || screen === 'done') && selectedTopicId) {
       setIsLoading(true)
       setError(null)
-      setScreen('queue')
+      setScreen('overview')
       try {
         const articles = await fetchArticlesForTopic(selectedTopicId)
         setQueue(buildQueue(articles, nextVersion))
@@ -167,6 +173,7 @@ export function useCatchUpSession() {
     error,
     selectTopic,
     start,
+    beginQueue,
     markRead,
     keepUnread,
     undo,
