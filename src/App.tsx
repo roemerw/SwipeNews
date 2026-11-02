@@ -1,74 +1,73 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CatchUpActions } from './components/CatchUpActions'
-import { CatchUpCard } from './components/CatchUpCard'
-import { CatchUpHeader } from './components/CatchUpHeader'
-import { CardSkeleton } from './components/CardSkeleton'
 import { EmptyState } from './components/EmptyState'
-import { PullToRefresh } from './components/PullToRefresh'
+import { FeedEmptyState } from './components/FeedEmptyState'
+import { HomeScreen } from './components/HomeScreen'
 import { ReaderSheet } from './components/ReaderSheet'
-import { TopicOverview } from './components/TopicOverview'
-import { TopicSelector } from './components/TopicSelector'
-import { topics } from './data/topics'
+import { UpdateActions } from './components/UpdateActions'
+import { UpdateCard } from './components/UpdateCard'
+import { UpdateFeedHeader } from './components/UpdateFeedHeader'
 import { useCatchUpSession } from './hooks/useCatchUpSession'
+import { formatFreshnessLabel } from './utils/formatters'
 
 function App() {
   const session = useCatchUpSession()
   const [swipeDirection, setSwipeDirection] = useState<1 | -1>(1)
 
   const {
-    activeArticle,
-    beginQueue,
+    activeFeedSummary,
+    activeSession,
+    activeUpdate,
     closeReader,
-    error,
-    goBack,
+    goHome,
     history,
-    isLoading,
-    keepUnread,
-    markRead,
-    nextArticle,
+    keepCurrent,
+    lastRefreshedAt,
+    latestSummary,
+    nextUpdate,
+    openLatest,
     openReader,
-    queue,
+    openTopic,
     readerArticle,
+    readerUpdate,
     refresh,
     remainingCount,
+    resolveCurrent,
+    queueTitle,
     screen,
-    selectTopic,
     selectedTopic,
     selectedTopicId,
-    start,
-    summary,
+    sessionSummary,
+    setSelectedTopicId,
+    topicSummaries,
     undo,
   } = session
 
-  const handleStart = useCallback(async () => {
-    if (!selectedTopicId) {
-      return
-    }
+  const freshnessLabel = useMemo(
+    () => formatFreshnessLabel(lastRefreshedAt),
+    [lastRefreshedAt],
+  )
 
-    await start(selectedTopicId)
-  }, [selectedTopicId, start])
-
-  const handleMarkRead = useCallback(() => {
+  const handleResolve = useCallback(() => {
     setSwipeDirection(1)
-    markRead()
-  }, [markRead])
+    resolveCurrent()
+  }, [resolveCurrent])
 
-  const handleKeepUnread = useCallback(() => {
+  const handleKeep = useCallback(() => {
     setSwipeDirection(-1)
-    keepUnread()
-  }, [keepUnread])
+    keepCurrent()
+  }, [keepCurrent])
 
   const handleCardCommit = useCallback(
-    (action: 'read' | 'keptUnread') => {
-      if (action === 'read') {
-        handleMarkRead()
+    (action: 'resolved' | 'kept') => {
+      if (action === 'resolved') {
+        handleResolve()
         return
       }
 
-      handleKeepUnread()
+      handleKeep()
     },
-    [handleKeepUnread, handleMarkRead],
+    [handleKeep, handleResolve],
   )
 
   useEffect(() => {
@@ -77,7 +76,7 @@ function App() {
         return
       }
 
-      if (readerArticle) {
+      if (readerUpdate) {
         if (event.key === 'Escape') {
           event.preventDefault()
           closeReader()
@@ -86,16 +85,16 @@ function App() {
         return
       }
 
-      if (!activeArticle) {
+      if (!activeUpdate) {
         return
       }
 
       if (event.key === 'ArrowRight') {
         event.preventDefault()
-        handleMarkRead()
+        handleResolve()
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault()
-        handleKeepUnread()
+        handleKeep()
       } else if (event.key === 'Enter') {
         event.preventDefault()
         openReader()
@@ -110,123 +109,127 @@ function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [
-    activeArticle,
-    closeReader,
-    handleKeepUnread,
-    handleMarkRead,
-    openReader,
-    readerArticle,
-    screen,
-  ])
+  }, [activeUpdate, closeReader, handleKeep, handleResolve, openReader, readerUpdate, screen])
+
+  const doneTitle =
+    activeSession?.mode === 'latest'
+      ? 'You are up to date across your tracked situations.'
+      : `You are up to date on ${selectedTopic?.label ?? 'this topic'}.`
+  const doneSummary = `${sessionSummary.reviewedCount} updates reviewed this session.`
+  const doneDetail =
+    sessionSummary.majorResolvedCount > 0
+      ? `${sessionSummary.resolvedCount} resolved, ${sessionSummary.keptCount} kept in rotation, ${sessionSummary.majorResolvedCount} major shifts cleared.`
+      : `${sessionSummary.resolvedCount} resolved, ${sessionSummary.keptCount} kept in rotation.`
+
+  const emptyMessage =
+    activeSession?.mode === 'latest'
+      ? 'Nothing net new right now.'
+      : `No new updates for ${selectedTopic?.label ?? 'this topic'}.`
+  const emptySubmessage =
+    activeSession?.mode === 'latest'
+      ? 'You have already cleared the latest relevant changes, and nothing kept in rotation still qualifies.'
+      : 'This situation is quiet for now, or the remaining items no longer qualify as latest relevant updates.'
 
   return (
     <main className="min-h-screen px-3 py-3 md:px-6 md:py-6">
       <div className="mx-auto flex min-h-[calc(100svh-1.5rem)] max-w-[430px] flex-col overflow-hidden bg-frame shadow-frame ring-1 ring-white/55 md:min-h-[820px] md:rounded-lg">
-        {screen === 'topics' ? (
-          <>
-            <TopicSelector
-              topics={topics}
-              selectedTopicId={selectedTopicId}
-              onSelectTopic={selectTopic}
-              onStart={handleStart}
-            />
-            {error ? (
-              <div className="px-5 pb-5">
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {error}
-                </div>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-
-        {screen === 'overview' && selectedTopic ? (
-          <TopicOverview
-            topicLabel={selectedTopic.label}
-            articles={queue}
-            isLoading={isLoading}
-            onBegin={beginQueue}
-            onBack={goBack}
+        {screen === 'home' ? (
+          <HomeScreen
+            topics={topicSummaries}
+            latestSummary={{ ...latestSummary, freshnessLabel }}
+            selectedTopicId={selectedTopicId}
+            onSelectTopic={setSelectedTopicId}
+            onOpenLatest={openLatest}
+            onOpenTopic={() => {
+              if (selectedTopicId) {
+                openTopic(selectedTopicId)
+              }
+            }}
+            onRefresh={refresh}
           />
         ) : null}
 
         {screen === 'queue' ? (
-          <PullToRefresh onRefresh={refresh}>
-            <section className="relative flex min-h-0 flex-1 flex-col">
-              <CatchUpHeader
-                remainingCount={remainingCount}
-                canUndo={history.length > 0}
-                onBack={goBack}
-                onUndo={undo}
-              />
+          <section className="relative flex min-h-0 flex-1 flex-col">
+            <UpdateFeedHeader
+              title={queueTitle ?? 'Latest'}
+              stateLabel={activeFeedSummary?.stateLabel ?? 'Quiet'}
+              summaryLine={activeFeedSummary?.summaryLine ?? 'No new changes'}
+              activityLine={activeFeedSummary?.activityLine ?? 'No recent movement'}
+              lastMeaningfulChangeLabel={
+                activeFeedSummary?.lastMeaningfulChangeLabel ?? 'No recent live change'
+              }
+              remainingCount={remainingCount}
+              canUndo={history.length > 0}
+              onBack={goHome}
+              onRefresh={refresh}
+              onUndo={undo}
+            />
 
-              <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4 pt-1 md:px-5">
-                <div className="relative h-full min-h-[430px] w-full max-w-[360px]">
-                  {isLoading ? (
-                    <CardSkeleton />
-                  ) : (
-                    <>
-                      {nextArticle ? (
-                        <motion.div
-                          aria-hidden="true"
-                          initial={false}
-                          animate={{ scale: 0.97, y: 14, opacity: 0.76 }}
-                          className="absolute inset-x-0 bottom-0 top-4"
-                        >
-                          <CatchUpCard article={nextArticle} variant="preview" />
-                        </motion.div>
-                      ) : null}
+            <div className="px-4 pb-2 text-center text-xs text-muted md:px-5">
+              {activeFeedSummary?.leadTitle
+                ? activeFeedSummary.leadTitle
+                : 'Only the latest relevant updates stay active here'}
+            </div>
 
-                      <AnimatePresence initial={false} custom={swipeDirection} mode="popLayout">
-                        {activeArticle ? (
-                          <CatchUpCard
-                            key={activeArticle.id}
-                            article={activeArticle}
-                            swipeDirection={swipeDirection}
-                            onOpenReader={openReader}
-                            onCommitAction={handleCardCommit}
-                          />
-                        ) : null}
-                      </AnimatePresence>
+            <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4 pt-1 md:px-5">
+              <div className="relative h-full min-h-[470px] w-full max-w-[360px]">
+                {nextUpdate ? (
+                  <motion.div
+                    aria-hidden="true"
+                    initial={false}
+                    animate={{ scale: 0.97, y: 14, opacity: 0.76 }}
+                    className="absolute inset-x-0 bottom-0 top-4"
+                  >
+                    <UpdateCard update={nextUpdate} variant="preview" />
+                  </motion.div>
+                ) : null}
 
-                      {error ? (
-                        <div className="flex h-full items-center justify-center">
-                          <div className="rounded-lg border border-white bg-white p-6 text-center shadow-card">
-                            <p className="text-sm text-muted">{error}</p>
-                            <button
-                              type="button"
-                              onClick={refresh}
-                              className="mt-4 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-900"
-                            >
-                              Try again
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </div>
+                <AnimatePresence initial={false} custom={swipeDirection} mode="wait">
+                  {activeUpdate ? (
+                    <UpdateCard
+                      key={activeUpdate.id}
+                      update={activeUpdate}
+                      swipeDirection={swipeDirection}
+                      onOpenArticle={openReader}
+                      onCommitAction={handleCardCommit}
+                    />
+                  ) : null}
+                </AnimatePresence>
               </div>
+            </div>
 
-              <CatchUpActions
-                disabled={!activeArticle || Boolean(readerArticle) || isLoading}
-                onKeepUnread={handleKeepUnread}
-                onMarkRead={handleMarkRead}
-              />
+            <UpdateActions
+              disabled={!activeUpdate || Boolean(readerUpdate)}
+              onKeep={handleKeep}
+              onResolve={handleResolve}
+            />
 
-              <ReaderSheet article={readerArticle} onClose={closeReader} />
-            </section>
-          </PullToRefresh>
+            <ReaderSheet
+              article={readerArticle}
+              topicLabel={readerUpdate?.topicLabel}
+              updateTitle={readerUpdate?.title}
+              onClose={closeReader}
+            />
+          </section>
         ) : null}
 
-        {screen === 'done' && selectedTopic ? (
+        {screen === 'done' && activeSession && history.length === 0 ? (
+          <FeedEmptyState
+            title={queueTitle ?? 'Latest'}
+            message={emptyMessage}
+            submessage={emptySubmessage}
+            onBack={goHome}
+            onRefresh={refresh}
+          />
+        ) : null}
+
+        {screen === 'done' && history.length > 0 ? (
           <EmptyState
-            topicLabel={selectedTopic.label}
-            reviewed={summary.reviewed}
-            readCount={summary.readCount}
-            keptUnreadCount={summary.keptUnreadCount}
-            onDone={goBack}
+            title={doneTitle}
+            summary={doneSummary}
+            detail={doneDetail}
+            onDone={goHome}
             onRefresh={refresh}
           />
         ) : null}

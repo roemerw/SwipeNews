@@ -1,214 +1,265 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { Article } from '../data/articles'
+import { useEffect, useMemo, useState } from 'react'
+import { getArticleForUpdate, getUpdateById, type UpdateItem } from '../data/updates'
 import { getTopicById } from '../data/topics'
-import { buildQueue } from '../utils/mockQueue'
-import { fetchArticlesForTopic } from '../services/fetchArticles'
+import {
+  buildTopicSummaries,
+  buildVisibleUpdates,
+  getFeedTitle,
+  summarizeFeed,
+  type TrackerFeedMode,
+} from '../lib/tracker'
+import { loadPersistenceState, savePersistenceState, type PersistenceState } from '../lib/persistence'
 
-const READ_KEY = 'catchup_read_ids'
-
-function getReadIds(): Set<string> {
-  try {
-    const raw = globalThis.localStorage?.getItem(READ_KEY)
-    return raw ? new Set(JSON.parse(raw)) : new Set()
-  } catch {
-    return new Set()
-  }
-}
-
-function persistReadIds(ids: Set<string>) {
-  try {
-    const arr = [...ids].slice(-200)
-    globalThis.localStorage?.setItem(READ_KEY, JSON.stringify(arr))
-  } catch {
-    // localStorage unavailable (SSR, test env)
-  }
-}
-
-export type Screen = 'topics' | 'overview' | 'queue' | 'done'
-export type HistoryAction = 'read' | 'keptUnread'
+export type Screen = 'home' | 'queue' | 'done'
+export type FeedMode = TrackerFeedMode
+export type HistoryAction = 'resolved' | 'kept'
 
 export interface HistoryEntry {
-  articleId: string
+  updateId: string
   action: HistoryAction
 }
 
-function buildSummary(history: HistoryEntry[]) {
-  const readCount = history.filter((entry) => entry.action === 'read').length
-  const keptUnreadCount = history.filter((entry) => entry.action === 'keptUnread').length
+interface QueueSession {
+  mode: FeedMode
+  topicId: string | null
+  queue: UpdateItem[]
+  startedAt: string
+}
 
-  return {
-    reviewed: history.length,
-    readCount,
-    keptUnreadCount,
-  }
+function initialPersistence(): PersistenceState {
+  return loadPersistenceState()
 }
 
 export function useCatchUpSession() {
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
-  const [screen, setScreen] = useState<Screen>('topics')
-  const [queue, setQueue] = useState<Article[]>([])
+  const [screen, setScreen] = useState<Screen>('home')
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>('iran')
+  const [activeSession, setActiveSession] = useState<QueueSession | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [history, setHistory] = useState<HistoryEntry[]>([])
-  const [readerArticleId, setReaderArticleId] = useState<string | null>(null)
-  const [refreshVersion, setRefreshVersion] = useState(0)
+  const [readerUpdateId, setReaderUpdateId] = useState<string | null>(null)
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date().toISOString())
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [persistence, setPersistence] = useState<PersistenceState>(initialPersistence)
 
-  const activeArticle = queue[currentIndex] ?? null
-  const nextArticle = queue[currentIndex + 1] ?? null
-  const selectedTopic = useMemo(() => getTopicById(selectedTopicId), [selectedTopicId])
-  const readerArticle = useMemo(
-    () => queue.find((article) => article.id === readerArticleId) ?? null,
-    [queue, readerArticleId],
-  )
-  const remainingCount = Math.max(queue.length - currentIndex, 0)
-  const summary = useMemo(() => buildSummary(history), [history])
+  useEffect(() => {
+    savePersistenceState(persistence)
+  }, [persistence])
 
-  const selectTopic = (topicId: string) => {
-    setSelectedTopicId(topicId)
-  }
+  const latestSummary = useMemo(() => summarizeFeed('latest', null, persistence), [persistence])
+  const topicSummaries = useMemo(() => buildTopicSummaries(persistence), [persistence])
 
-  const start = useCallback(async (topicId: string) => {
-    setSelectedTopicId(topicId)
-    setIsLoading(true)
-    setError(null)
-    setScreen('overview')
-    try {
-      const articles = await fetchArticlesForTopic(topicId)
-      const readIds = getReadIds()
-      const fresh = articles.filter((a) => !readIds.has(a.id))
-      setQueue(buildQueue(fresh.length > 0 ? fresh : articles, 0))
-      setCurrentIndex(0)
-      setHistory([])
-      setReaderArticleId(null)
-    } catch {
-      setError('Failed to load articles')
-      setScreen('topics')
-    } finally {
-      setIsLoading(false)
+  const activeFeedSummary = useMemo(() => {
+    if (!activeSession) {
+      return null
     }
-  }, [])
 
-  const beginQueue = () => {
-    if (queue.length > 0) {
-      setScreen('queue')
+    return summarizeFeed(activeSession.mode, activeSession.topicId, persistence)
+  }, [activeSession, persistence])
+
+  const activeUpdate = activeSession?.queue[currentIndex] ?? null
+  const nextUpdate = activeSession?.queue[currentIndex + 1] ?? null
+  const readerUpdate = readerUpdateId ? getUpdateById(readerUpdateId) : null
+  const readerArticle = readerUpdate ? getArticleForUpdate(readerUpdate) : null
+  const remainingCount = Math.max((activeSession?.queue.length ?? 0) - currentIndex, 0)
+  const selectedTopic = getTopicById(selectedTopicId)
+
+  const sessionSummary = useMemo(() => {
+    const resolvedCount = history.filter((entry) => entry.action === 'resolved').length
+    const keptCount = history.filter((entry) => entry.action === 'kept').length
+    const majorResolvedCount = history.filter((entry) => {
+      const update = getUpdateById(entry.updateId)
+      return entry.action === 'resolved' && update?.magnitude === 'major'
+    }).length
+
+    return {
+      resolvedCount,
+      keptCount,
+      reviewedCount: history.length,
+      majorResolvedCount,
     }
-  }
+  }, [history])
 
-  const processCurrentArticle = (action: HistoryAction) => {
-    if (screen !== 'queue' || !activeArticle || readerArticleId) {
+  const commitVisit = (session: QueueSession | null) => {
+    if (!session) {
       return
     }
 
-    const nextHistory = [...history, { articleId: activeArticle.id, action }]
+    setPersistence((current) => {
+      if (session.mode === 'latest') {
+        return {
+          ...current,
+          latestLastVisitedAt: session.startedAt,
+        }
+      }
+
+      if (!session.topicId) {
+        return current
+      }
+
+      return {
+        ...current,
+        topicLastVisitedAt: {
+          ...current.topicLastVisitedAt,
+          [session.topicId]: session.startedAt,
+        },
+      }
+    })
+  }
+
+  const startSession = (mode: FeedMode, topicId: string | null) => {
+    const queue = buildVisibleUpdates({ mode, topicId, persistence })
+    const startedAt = new Date().toISOString()
+
+    setActiveSession({
+      mode,
+      topicId,
+      queue,
+      startedAt,
+    })
+    setCurrentIndex(0)
+    setHistory([])
+    setReaderUpdateId(null)
+    setScreen(queue.length ? 'queue' : 'done')
+  }
+
+  const openLatest = () => {
+    startSession('latest', null)
+  }
+
+  const openTopic = (topicId: string) => {
+    setSelectedTopicId(topicId)
+    startSession('topic', topicId)
+  }
+
+  const processCurrentUpdate = (action: HistoryAction) => {
+    if (!activeUpdate || !activeSession || readerUpdateId) {
+      return
+    }
+
+    setPersistence((current) => {
+      const resolvedUpdateIds =
+        action === 'resolved'
+          ? Array.from(new Set([...current.resolvedUpdateIds, activeUpdate.id]))
+          : current.resolvedUpdateIds.filter((updateId) => updateId !== activeUpdate.id)
+      const keptUpdateIds =
+        action === 'kept'
+          ? Array.from(new Set([...current.keptUpdateIds, activeUpdate.id]))
+          : current.keptUpdateIds.filter((updateId) => updateId !== activeUpdate.id)
+
+      return {
+        ...current,
+        resolvedUpdateIds,
+        keptUpdateIds,
+      }
+    })
+
+    const nextHistory = [...history, { updateId: activeUpdate.id, action }]
     const nextIndex = currentIndex + 1
 
     setHistory(nextHistory)
     setCurrentIndex(nextIndex)
-    setReaderArticleId(null)
-    setScreen(nextIndex >= queue.length ? 'done' : 'queue')
+    setReaderUpdateId(null)
+    setScreen(nextIndex >= activeSession.queue.length ? 'done' : 'queue')
   }
 
-  const markRead = () => {
-    if (activeArticle) {
-      const readIds = getReadIds()
-      readIds.add(activeArticle.id)
-      persistReadIds(readIds)
-    }
-    processCurrentArticle('read')
+  const resolveCurrent = () => {
+    processCurrentUpdate('resolved')
   }
 
-  const keepUnread = () => {
-    processCurrentArticle('keptUnread')
+  const keepCurrent = () => {
+    processCurrentUpdate('kept')
   }
 
   const undo = () => {
-    if (!history.length) {
+    if (!history.length || !activeSession) {
       return
     }
 
+    const lastEntry = history[history.length - 1]
     const nextHistory = history.slice(0, -1)
+
+    setPersistence((current) => ({
+      ...current,
+      resolvedUpdateIds: current.resolvedUpdateIds.filter((updateId) => updateId !== lastEntry.updateId),
+      keptUpdateIds: current.keptUpdateIds.filter((updateId) => updateId !== lastEntry.updateId),
+    }))
 
     setHistory(nextHistory)
     setCurrentIndex(nextHistory.length)
-    setReaderArticleId(null)
+    setReaderUpdateId(null)
     setScreen('queue')
   }
 
   const openReader = () => {
-    if (screen !== 'queue' || !activeArticle) {
+    if (!activeUpdate) {
       return
     }
 
-    setReaderArticleId(activeArticle.id)
+    setReaderUpdateId(activeUpdate.id)
+    const article = getArticleForUpdate(activeUpdate)
+
+    if (!article) {
+      return
+    }
+
+    setPersistence((current) => ({
+      ...current,
+      openedArticleIds: Array.from(new Set([...current.openedArticleIds, article.id])),
+    }))
   }
 
   const closeReader = () => {
-    setReaderArticleId(null)
+    setReaderUpdateId(null)
   }
 
-  const refresh = useCallback(async () => {
-    const nextVersion = refreshVersion + 1
-
-    setRefreshVersion(nextVersion)
+  const refresh = () => {
     setLastRefreshedAt(new Date().toISOString())
 
-    if ((screen === 'overview' || screen === 'queue' || screen === 'done') && selectedTopicId) {
-      setIsLoading(true)
-      setError(null)
-      setScreen('overview')
-      try {
-        const articles = await fetchArticlesForTopic(selectedTopicId)
-        const readIds = getReadIds()
-        const fresh = articles.filter((a) => !readIds.has(a.id))
-        setQueue(buildQueue(fresh.length > 0 ? fresh : articles, nextVersion))
-        setCurrentIndex(0)
-        setHistory([])
-        setReaderArticleId(null)
-      } catch {
-        setError('Failed to refresh articles')
-      } finally {
-        setIsLoading(false)
-      }
+    if (screen === 'home') {
+      return
     }
-  }, [refreshVersion, screen, selectedTopicId])
 
-  const goBack = () => {
-    setQueue([])
+    if (!activeSession) {
+      return
+    }
+
+    startSession(activeSession.mode, activeSession.topicId)
+  }
+
+  const goHome = () => {
+    commitVisit(activeSession)
+    setScreen('home')
+    setActiveSession(null)
     setCurrentIndex(0)
     setHistory([])
-    setReaderArticleId(null)
-    setError(null)
-    setScreen('topics')
+    setReaderUpdateId(null)
   }
 
   return {
-    selectedTopicId,
-    screen,
-    queue,
-    currentIndex,
-    history,
-    readerArticleId,
-    refreshVersion,
-    lastRefreshedAt,
-    selectedTopic,
-    activeArticle,
-    nextArticle,
-    readerArticle,
-    remainingCount,
-    summary,
-    isLoading,
-    error,
-    selectTopic,
-    start,
-    beginQueue,
-    markRead,
-    keepUnread,
-    undo,
-    openReader,
+    activeFeedSummary,
+    activeSession,
+    activeUpdate,
     closeReader,
+    goHome,
+    history,
+    keepCurrent,
+    lastRefreshedAt,
+    latestSummary,
+    nextUpdate,
+    openLatest,
+    openReader,
+    openTopic,
+    readerArticle,
+    readerUpdate,
     refresh,
-    goBack,
+    remainingCount,
+    resolveCurrent,
+    screen,
+    selectedTopic,
+    selectedTopicId,
+    sessionSummary,
+    setSelectedTopicId,
+    topicSummaries,
+    undo,
+    queueTitle: activeSession ? getFeedTitle(activeSession.mode, activeSession.topicId) : null,
   }
 }

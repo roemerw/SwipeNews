@@ -5,10 +5,12 @@ import { CloseIcon, ExternalIcon } from './Icons'
 
 interface ReaderSheetProps {
   article: Article | null
+  topicLabel?: string
+  updateTitle?: string
   onClose: () => void
 }
 
-export function ReaderSheet({ article, onClose }: ReaderSheetProps) {
+export function ReaderSheet({ article, topicLabel, updateTitle, onClose }: ReaderSheetProps) {
   return (
     <AnimatePresence>
       {article ? (
@@ -34,11 +36,21 @@ export function ReaderSheet({ article, onClose }: ReaderSheetProps) {
             <div className="flex items-start justify-between border-b border-slate-100 px-5 pb-4 pt-5">
               <div>
                 <div className="flex items-center gap-2 text-[11px] text-muted">
+                  {topicLabel ? (
+                    <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-ink">
+                      {topicLabel}
+                    </span>
+                  ) : null}
                   <span className="rounded-full bg-accentSoft px-2 py-1 font-semibold text-accent">
                     {article.source}
                   </span>
                   <span>{formatArticleTimestamp(article.timestamp)}</span>
                 </div>
+                {updateTitle && updateTitle !== article.headline ? (
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                    {updateTitle}
+                  </p>
+                ) : null}
                 <h2 className="mt-3 pr-4 text-[1.35rem] font-semibold leading-tight tracking-tight text-ink">
                   {article.headline}
                 </h2>

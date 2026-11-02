@@ -2,19 +2,17 @@ import { motion } from 'framer-motion'
 import { CheckIcon, RefreshIcon } from './Icons'
 
 interface EmptyStateProps {
-  topicLabel: string
-  reviewed: number
-  readCount: number
-  keptUnreadCount: number
+  title: string
+  summary: string
+  detail: string
   onDone: () => void
   onRefresh: () => void
 }
 
 export function EmptyState({
-  topicLabel,
-  reviewed,
-  readCount,
-  keptUnreadCount,
+  title,
+  summary,
+  detail,
   onDone,
   onRefresh,
 }: EmptyStateProps) {
@@ -52,12 +50,9 @@ export function EmptyState({
         transition={{ delay: 0.3 }}
         className="mt-7 rounded-lg border border-white/60 bg-white/65 px-4 py-4 text-left shadow-card"
       >
-        <p className="text-sm font-semibold text-ink">
-          You reviewed {reviewed} updates on {topicLabel}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          {readCount} marked read, {keptUnreadCount} kept unread.
-        </p>
+        <p className="text-sm font-semibold text-ink">{title}</p>
+        <p className="mt-2 text-sm leading-6 text-muted">{summary}</p>
+        <p className="mt-2 text-sm leading-6 text-muted">{detail}</p>
       </motion.div>
 
       <motion.div
